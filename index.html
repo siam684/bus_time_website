@@ -1,0 +1,530 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN"
+    "http://www.w3.org/TR/html4/strict.dtd">
+<html lang="en">
+  <head>
+    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+    <title>title</title>
+    
+    
+    <style>
+      
+      .routeName
+      {
+        
+      }
+    
+      .routeName:hover
+      {
+        background-color:red;
+      }
+      
+      .leftVehicleDiv
+      {
+        
+      }
+      
+      .rightRouteDiv
+      {
+        
+      }
+      
+    
+    </style>
+    
+    
+    
+    <script
+      src="https://code.jquery.com/jquery-3.1.1.js"
+      integrity="sha256-16cdPddA6VdVInumRGo6IbivbERE8p7CQR3HzTBuELA="
+      crossorigin="anonymous"></script>
+    
+    <script type="text/javascript">
+			
+		Array.prototype.insertAt = function (index, item) {
+			this.splice(index, 0, item);
+		};
+		
+		Array.prototype.removeItemAt = function (index) {	
+			this.splice(index, 1);
+		};
+			
+		Number.prototype.toRadians = function() {
+			return this * Math.PI / 180;
+		}
+      
+    var listOfAllroutes = new Array();
+    var countofCallRoutes = 0;
+    var routesDiv;
+    var vehiclesOnRoutesDiv;
+    var stopsforRoute;
+		var busesOnRoute = new Array();
+    var vehiclesLoaded = false;
+    var stopsLoaded = false;
+		var selectedRoute;
+    var stopIdTostopObjectReference;
+		var arrayOfStopStrings;
+			
+    $(document).ready(function(){
+      
+      callRoutesFor('MTABC');
+      
+      callRoutesFor('MTA NYCT');
+      
+      
+      //console.log(listOfAllroutes);
+      routesDiv = document.getElementById('routesDiv');
+      vehiclesOnRoutesDiv = document.getElementById('vehiclesOnRoutesDiv');
+     
+      
+    });
+      
+      
+    function callRoutesFor(agencyName)
+    {
+      $.getJSON( "http://bustime.mta.info/api/where/routes-for-agency/"+agencyName+".json?key=f3c06459-2018-43b6-b9ab-6e4356b4f1ad&callback=?", function( data ) {
+        
+      })
+      .done(function(data) {
+        //console.log( "second success" );
+        //console.log(data);
+        var listOfRoutes = data.data.list;
+        //console.log(listOfRoutes);
+        listOfRoutes.forEach(function(route,index){
+				listOfAllroutes.push(route);
+          //console.log(route.shortName);
+          
+          
+        });
+        
+        countofCallRoutes++;
+          
+        if(countofCallRoutes==2)
+        {
+            routesForAgencyLoaded();
+        }
+        
+      })
+      .fail(function() {
+        console.log( "error" );
+      })
+      .always(function() {
+        //console.log( "complete" );
+      });
+      
+      
+      
+ 
+    }
+      
+    function routesForAgencyLoaded()
+    {
+      //console.log("full list "); 
+      //console.log(listOfAllroutes);
+
+      listOfAllroutes.sort(function(a, b) {
+        var nameA = a.shortName.toUpperCase(); // ignore upper and lowercase
+        var nameB = b.shortName.toUpperCase(); // ignore upper and lowercase
+        if (nameA < nameB) {
+          return -1;
+        }
+        if (nameA > nameB) {
+          return 1;
+        }
+
+        // names must be equal
+        return 0;
+      });
+
+
+      listOfAllroutes.forEach(function(route,index){
+					
+          var tempDiv = document.createElement('div');
+          tempDiv.innerHTML = route.shortName + " "+route.longName+"<br>";
+          tempDiv.setAttribute('data-route-id',route.id);
+          $(tempDiv).on('click',function(){
+						selectedRoute = tempDiv.getAttribute('data-route-id');
+						$(routesDiv).empty();
+						routesDiv.innerHTML = 'please wait';
+						getVehicleMonitorForRoute(selectedRoute);
+            getStopsForRoute(selectedRoute);				
+						setInterval(function(){
+							getVehicleMonitorForRoute(selectedRoute);
+            	getStopsForRoute(selectedRoute);						
+						}, 100000);
+            
+						
+						
+          });
+          $(tempDiv).addClass('routeName');
+          $(routesDiv).append(tempDiv);
+
+      });
+
+    }
+      
+      
+    function getVehicleMonitorForRoute(route)
+    {
+        //http://bustime.mta.info/api/siri/vehicle-monitoring.json?key=f3c06459-2018-43b6-b9ab-6e4356b4f1ad&LineRef=MTA%20NYCT_B41
+        route = encodeURI(route);
+        $.getJSON( "http://bustime.mta.info/api/siri/vehicle-monitoring.json?key=f3c06459-2018-43b6-b9ab-6e4356b4f1ad&LineRef="+route+"&version=2&callback=?", function( data ) {
+          //console.log(data);
+          //console.log(data);
+          //console.log(data.Siri);          
+          //console.log(data.Siri.ServiceDelivery);
+          //console.log(data.Siri.ServiceDelivery.VehicleMonitoringDelivery);
+          //console.log(data.Siri.ServiceDelivery.VehicleMonitoringDelivery[0].VehicleActivity);
+          
+          busesOnRoute = data.Siri.ServiceDelivery.VehicleMonitoringDelivery[0].VehicleActivity;
+          
+          busesOnRoute.forEach(function(item,index){
+            //console.log(item.MonitoredVehicleJourney.MonitoredCall.ArrivalProximityText + ' ' + item.MonitoredVehicleJourney.MonitoredCall.StopPointName[0]);
+            
+          });
+          
+        })
+        .done(function(data) {
+          //Siri
+          //ServiceDelivery
+          //VehicleMonitoringDelivery
+          //VehicleActivity
+          //MonitoredVehicleJourney
+          vehiclesLoaded = true;
+					showVehiclesAndStopsOnRoute();
+        })
+        .fail(function() {
+          console.log( "error" );
+        })
+        .always(function() {
+         // console.log( "complete" );
+        });
+    }
+      
+      
+    function getStopsForRoute(route)
+    {
+      //http://bustime.mta.info/api/where/stops-for-route/MTABC_Q101.json?key=f3c06459-2018-43b6-b9ab-6e4356b4f1ad&includePolylines=false&version=2
+      route = encodeURI(route);
+      $.getJSON( "http://bustime.mta.info/api/where/stops-for-route/"+route+".json?key=f3c06459-2018-43b6-b9ab-6e4356b4f1ad&includePolylines=false&version=2&callback=?", function( data ) {
+        //console.log(data);
+				var directionOneStopIds= data.data.entry.stopGroupings[0].stopGroups[0].stopIds;				
+				var directionZeroStopIds= data.data.entry.stopGroupings[0].stopGroups[1].stopIds;
+				stopsforRoute = data.data.references.stops;
+				
+				var directionOneStopObjects = new Array();
+				var directionZeroStopObjects = new Array();
+				var string='{';
+				
+				stopsforRoute.forEach(function(stop,index){
+					id = '\"'+stop.id+'\"';
+					//name = '\"'+encodeURI(stop.name)+'\"';
+					string = string+id+':'+JSON.stringify(stop);
+					if(index!=stopsforRoute.length-1)
+					{
+						string = string+',';
+					}
+					else
+					{
+						string = string+'}';
+					}
+					
+				});
+				stopIdTostopObjectReference = JSON.parse(string);
+				//console.log(stopIdTostopObjectReference);
+				
+				directionOneStopIds.forEach(function(stopId,index){
+					directionOneStopObjects[index] = stopIdTostopObjectReference[stopId];
+				});
+				
+				directionZeroStopIds.forEach(function(stopId,index){
+					directionZeroStopObjects[index] = stopIdTostopObjectReference[stopId];
+				});
+				/*
+				
+				
+				var someArray = new Array();
+				var string='{';
+				
+				directionZero.reverse();
+				
+				stopsforRoute.forEach(function(stop,index){
+					id = '\"'+stop.id+'\"';
+					name = '\"'+encodeURI(stop.name)+'\"';
+					string = string+id+':'+name;
+					if(index!=stopsforRoute.length-1)
+					{
+						string = string+',';
+					}
+					else
+					{
+						string = string+'}';
+					}
+					
+					
+					//someArray.push(object);
+				});
+				stopIdTostopObjectReference = JSON.parse(string);
+				console.log(string);
+				console.log(stopIdTostopObjectReference);
+        //console.log( data.data.references.stops);
+				arrayOfStopStrings = new Array();
+				
+				if(directionZero.length>directionOne.length)
+				{
+						
+				}
+				
+				directionOne.forEach(function(stopId,index){
+					console.log(stopId+' '+decodeURI(stopIdTostopObjectReference[stopId]));					
+				});
+				
+				console.log('------------------------------------------------------------------------');
+				directionZero.forEach(function(stopId,index){
+					console.log(stopId+' '+decodeURI(stopIdTostopObjectReference[stopId]));					
+				});
+				
+				
+				
+				
+				*/
+				//console.log(directionOneStopObjects.length);
+				//console.log(directionZeroStopObjects.length);
+				if(directionOneStopObjects.length>=directionZeroStopObjects.length)
+				{
+					mergeArraysOfStops(directionOneStopObjects,directionZeroStopObjects);
+				}
+				else
+				{
+					mergeArraysOfStops(directionZeroStopObjects,directionOneStopObjects);
+				}
+				
+      })
+      .done(function(data) {
+        //Siri
+        //ServiceDelivery
+        //VehicleMonitoringDelivery
+        //VehicleActivity
+        //MonitoredVehicleJourney
+        stopsLoaded = true;
+				showVehiclesAndStopsOnRoute();
+      })
+      .fail(function() {
+        console.log( "error" );
+      })
+      .always(function() {
+        //console.log( "complete" );
+      });
+    }
+			
+		function mergeArraysOfStops(largerArrayIn,smallerArrayIn)
+		{
+			var mergedArray = new Array();
+			var smallerArray = smallerArrayIn.slice(0);
+			var largerArray = largerArrayIn.slice(0);
+			
+			for(var i = 0;i<largerArray.length;i++)
+			{
+						for(var j = 0;j<smallerArray.length;j++)
+						{
+								if(largerArray[i].name==smallerArray[j].name)
+								{
+										largerArray.insertAt(i,smallerArray[j]);
+										smallerArray.removeItemAt(j);
+								}
+						}
+			}
+			
+			
+			
+			while(largerArray.length!==0)
+			{
+				var tempStop = largerArray.pop();
+				
+				if(largerArray.length!=0)
+				{					
+					var nextTempStop = largerArray.pop();
+
+					if(tempStop.name===nextTempStop.name)
+					{
+						largerArray.push(nextTempStop);
+						continue;
+					}
+					else
+					{
+						largerArray.push(nextTempStop);
+					}
+				}
+				
+				console.log(tempStop);
+				
+				if(smallerArray.length!=0)
+				{
+					var shortestDistanceBetween = getDistanceBetweenStops(smallerArray[0].lat,smallerArray[0].lon,tempStop.lat,tempStop.lon);
+					var indexOfneighboringStop = 0;
+				}
+				
+				
+				smallerArray.forEach(function(stop,index){
+					var newdistanceBetween = getDistanceBetweenStops(stop.lat,stop.lon,tempStop.lat,tempStop.lon);
+					console.log('checking '+stop.name);
+					console.log('against '+tempStop.name);
+
+					if(newdistanceBetween<=shortestDistanceBetween)
+					{
+							shortestDistanceBetween = newdistanceBetween;
+							indexOfneighboringStop = index;
+					}
+					//debugger;
+				});
+				
+				console.log('index of neighboring stop: '+indexOfneighboringStop);
+				mergedArray.push(tempStop);
+				console.log('inserting '+tempStop.name);
+				
+				if(smallerArray.length!=0)
+				{
+					mergedArray.push(smallerArray[indexOfneighboringStop]);
+					console.log('inserting and removing'+smallerArray[indexOfneighboringStop].name);				
+					smallerArray.removeItemAt(indexOfneighboringStop);
+				}
+				
+			
+			}
+			
+			mergedArray.forEach(function(stop,indes){				
+				console.log(stop.name);			
+			});
+			
+			while(smallerArray.length!==0)
+			{
+				var someStop = smallerArray.pop();
+				mergedArray.push(someStop);
+			}
+			
+			console.log(smallerArray.length);
+			console.log(largerArray.length);
+		
+			
+		}
+			
+		function getDistanceBetweenStops(lat1,lon1,lat2,lon2)
+		{
+			var R = 6371e3; // metres
+			var lat1InRads = lat1.toRadians();
+			var lat2InRads = lat2.toRadians();
+			var latDiffInRads = (lat2-lat1).toRadians();
+			var lonDiffInRads = (lon2-lon1).toRadians();
+
+			var a = Math.sin(latDiffInRads/2) * Math.sin(latDiffInRads/2) +
+							Math.cos(lat1InRads) * Math.cos(lat2InRads) *
+							Math.sin(lonDiffInRads/2) * Math.sin(lonDiffInRads/2);
+			var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+			var d = R * c;
+			
+			console.log('distance between: '+d);
+			return d;
+		}
+      
+    function showVehiclesAndStopsOnRoute()
+    {
+      $(vehiclesOnRoutesDiv).empty();
+			
+			var table = document.createElement('table');
+			
+			
+			if(vehiclesLoaded&&stopsLoaded)
+      {
+        stopsforRoute.forEach(function(stop, index){
+					
+					if(index==0)
+					{
+						var tempTr = document.createElement('tr');
+						var tempTd0 = document.createElement('td');
+						var tempTd1 = document.createElement('td');
+						var tempTd2 = document.createElement('td');
+
+						tempTd0.innerHTML = 'Direction';
+						tempTd1.innerHTML = 'Location';
+						tempTd2.innerHTML = 'Stop';
+
+						$(tempTr).append(tempTd0);
+						$(tempTr).append(tempTd1);
+						$(tempTr).append(tempTd2);
+
+						$(table).append(tempTr);
+					}
+					
+					//console.log(stop.name);
+					var tempTr = document.createElement('tr');
+					var tempTd0 = document.createElement('td');
+					var tempTd1 = document.createElement('td');
+					var tempTd2 = document.createElement('td');
+					
+					tempTd0.innerHTML = '&#32&#32|';
+					tempTd1.innerHTML = '';
+					tempTd2.innerHTML = stop.name;
+					
+					tempTd0.id = stop.id+'_busIcon';
+					tempTd1.id = stop.id+'_vehicle';
+					tempTd2.id = stop.id+'_stop';
+					
+					$(tempTr).append(tempTd0);
+					$(tempTr).append(tempTd1);
+					$(tempTr).append(tempTd2);
+					tempTr.id = stop.id;
+					
+					$(table).append(tempTr);
+					routesDiv.style.display = 'none';
+				});
+				
+      }
+			
+			$(vehiclesOnRoutesDiv).append(table);
+			fillVehicleCells();
+    }
+			
+			
+		function fillVehicleCells()
+		{
+				busesOnRoute.forEach(function(vehicle,index){
+					
+					var direction=vehicle.MonitoredVehicleJourney.DirectionRef;
+					var valueAtdirectionCell = document.getElementById(vehicle.MonitoredVehicleJourney.MonitoredCall.StopPointRef+'_busIcon').innerHTML;
+					document.getElementById(vehicle.MonitoredVehicleJourney.MonitoredCall.StopPointRef+'_vehicle').innerHTML  = vehicle.MonitoredVehicleJourney.MonitoredCall.ArrivalProximityText;
+					
+					
+					if(valueAtdirectionCell=="&#x25BC"||valueAtdirectionCell=="&#x25B2")
+					{
+						document.getElementById(vehicle.MonitoredVehicleJourney.MonitoredCall.StopPointRef+'_busIcon').innerHTML = valueAtdirectionCell + (direction == 0 ? "&#x25BC" : "&#x25B2");
+
+					}
+					else
+					{
+						document.getElementById(vehicle.MonitoredVehicleJourney.MonitoredCall.StopPointRef+'_busIcon').innerHTML  = (direction == 0 ? "&#x25BC" : "&#x25B2")+ " "+ vehicle.MonitoredVehicleJourney.VehicleRef;
+						//U+25B2 BLACK UP-POINTING TRIANGLE &#x25B2; 0 is down 1 is up
+						//U+25BC BLACK DOWN-POINTING TRIANGLE &#x25BC;
+					}
+					
+					
+					
+					
+					
+					
+					
+				});
+		}
+			
+    </script>
+  </head>
+  <body>
+		<div id='routesDiv'>
+      
+    </div>
+    
+    <div id='vehiclesOnRoutesDiv'>
+      
+    </div>
+    
+  </body>
+</html>
