@@ -321,39 +321,10 @@
 			var mergedArray = new Array();
 			var smallerArray = smallerArrayIn.slice(0);
 			var largerArray = largerArrayIn.slice(0);
-			
-			for(var i = 0;i<largerArray.length;i++)
-			{
-						for(var j = 0;j<smallerArray.length;j++)
-						{
-								if(largerArray[i].name==smallerArray[j].name)
-								{
-										largerArray.insertAt(i,smallerArray[j]);
-										smallerArray.removeItemAt(j);
-								}
-						}
-			}
-			
-			
-			
+						
 			while(largerArray.length!==0)
 			{
 				var tempStop = largerArray.pop();
-				
-				if(largerArray.length!=0)
-				{					
-					var nextTempStop = largerArray.pop();
-
-					if(tempStop.name===nextTempStop.name)
-					{
-						largerArray.push(nextTempStop);
-						continue;
-					}
-					else
-					{
-						largerArray.push(nextTempStop);
-					}
-				}
 				
 				console.log(tempStop);
 				
